@@ -1,0 +1,50 @@
+#TODO
+def generator(z, output_dim, reuse=False, alpha=0.2, training=True):
+    with tf.variable_scope('generator', reuse=reuse):
+        filter_size=(5,5)
+        strides=(2,2)
+        
+        # First fully connected layer
+        fcl=tf.contrib.layers.fully_connected(z,4*4*512,activation_fn=None)
+        #When reshaping take into account the first 'infered' dimention for batches
+        fcl_r=tf.reshape(fcl,[-1,4,4,512])
+        fcl_r=tf.layers.batch_normalization(fcl_r, training=training)
+        fcl_r=tf.maximum(fcl_r*alpha,fcl_r)
+        
+        #Transposed Convolution Layers
+        
+        #layer_size:4->8 and num_layers:512->256
+        input_channels=fcl_r.get_shape().as_list()[3]
+        batch_size=fcl_r.get_shape().as_list()[1]
+        output_channels=input_channels//2
+        
+        weights=tf.Variable(tf.truncated_normal([filter_size[0],filter_size[1],output_channels,input_channels]))
+        strides=[1,strides[0],strides[1],1]
+        tconv1=tf.nn.conv2d_transpose(fcl_r,weights,[batch_size,8,8,output_channels],strides,padding='SAME',data_format='NHWC')
+        #tconv1=tf.contrib.layers.convolution2d_transpose(fcl_r,output_channels,filter_size,strides,padding='SAME')
+        tconv1 = tf.layers.batch_normalization(tconv1, training=training)
+        tconv1=tf.maximum(tconv1*alpha,tconv1)
+        
+         #layer_size:8->16 and num_layers:256->128
+        input_channels=tconv1.get_shape().as_list()[3]
+        output_channels=input_channels//2
+        weights=tf.Variable(tf.truncated_normal([filter_size[0],filter_size[1],output_channels,input_channels]))
+        strides=[1,strides[0],strides[1],1]
+        tconv2=tf.nn.conv2d_transpose(tconv1,weights,[batch_size,16,16,output_channels],strides,padding='SAME',data_format='NHWC')
+        
+        tconv2 = tf.layers.batch_normalization(tconv2, training=training)
+        tconv2=tf.maximum(tconv2*alpha,tconv2)
+        
+        
+        # Output layer, 32x32x3
+        input_channels=tconv2.get_shape().as_list()[3]
+        output_channels=3
+        weights=tf.Variable(tf.truncated_normal([filter_size[0],filter_size[1],output_channels,input_channels]))
+        strides=[1,strides[0],strides[1],1]
+        logits=tf.nn.conv2d_transpose(tconv2,weights,[batch_size,32,32,output_channels],strides,padding='SAME',data_format='NHWC')
+        
+        
+        out = tf.tanh(logits)
+        print('fin generator')
+        return out
+     
